@@ -39,7 +39,9 @@ import {
   syncCustomerToSupabase,
   deleteCustomerFromSupabase,
   syncBillToSupabase,
-  deleteBillFromSupabase
+  deleteBillFromSupabase,
+  subscribeToSupabaseRealtime,
+  getSupabaseClient
 } from './services/supabase';
 
 export default function App() {
