@@ -106,10 +106,30 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (supabaseConfig.isEnabled && currentUser) {
-      syncDataFromCloud(supabaseConfig);
+  if (!supabaseConfig.isEnabled || !currentUser) return;
+
+  // 1. මුලින්ම පවතින දත්ත Cloud එකෙන් ලබා ගැනීම
+  syncDataFromCloud(supabaseConfig);
+
+  // 2. Real-Time WebSocket Listener (වෙනස්කමක් වූ සැණින් 0ms Delay එකකින් Data Refresh වීම)
+  const channel = subscribeToSupabaseRealtime(supabaseConfig, () => {
+    syncDataFromCloud(supabaseConfig);
+  });
+
+  // 3. ආරක්ෂිත Background Heartbeat (සෑම තත්පර 2කටම පසුබිමින් පරීක්ෂා කිරීම)
+  const intervalId = setInterval(() => {
+    syncDataFromCloud(supabaseConfig);
+  }, 2000);
+
+  // Cleanup: පිටුවෙන් ඉවත් වන විට listener එක නවත්වයි
+  return () => {
+    if (channel) {
+      const client = getSupabaseClient(supabaseConfig);
+      client?.removeChannel(channel);
     }
-  }, [supabaseConfig.isEnabled, currentUser, syncDataFromCloud]);
+    clearInterval(intervalId);
+  };
+}, [supabaseConfig.isEnabled, currentUser, syncDataFromCloud]);
 
   // Handle Login Success
   const handleLoginSuccess = (user: AdminUser) => {
