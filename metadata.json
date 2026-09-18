@@ -1,0 +1,6 @@
+{
+  "name": "NMW POS SYSTEM",
+  "description": "Professional POS and Inventory Management System with Box Number tracking, automated billing in Sri Lankan Rupees, customer management, and Supabase integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
