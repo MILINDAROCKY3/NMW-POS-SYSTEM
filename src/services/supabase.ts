@@ -576,3 +576,27 @@ BEGIN
 END
 $$;
 `;
+// --- REAL-TIME LISTENER ---
+export function subscribeToSupabaseRealtime(
+  config: SupabaseConfig,
+  onDataChange: () => void
+) {
+  const client = getSupabaseClient(config);
+  if (!client || !config.isEnabled) return null;
+
+  // Supabase WebSocket channel එක විවෘත කිරීම
+  const channel = client
+    .channel('nmw_realtime_channel')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, () => {
+      onDataChange(); // භාණ්ඩයක් වෙනස් වූ සැණින් Call වේ
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'bills' }, () => {
+      onDataChange(); // අලුත් බිලක් ගැසූ සැණින් Call වේ
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, () => {
+      onDataChange(); // Customer කෙනෙක් වෙනස් වූ සැණින් Call වේ
+    })
+    .subscribe();
+
+  return channel;
+}
