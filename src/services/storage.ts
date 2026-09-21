@@ -26,182 +26,14 @@ export const DEFAULT_SETTINGS: ShopSettings = {
   auto_print_on_save: true,
 };
 
-const SEED_INVENTORY: InventoryItem[] = [
-  {
-    id: 'itm-1',
-    item_code: 'NMW-ITM-001',
-    name: 'iPhone 13 Pro Super Retina OLED Display',
-    box_number: 'BOX-A01',
-    category: 'Displays & LCD',
-    cost_price: 18500,
-    selling_price: 26500,
-    quantity: 6,
-    low_stock_threshold: 2,
-    created_at: new Date(Date.now() - 86400000 * 5).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'itm-2',
-    item_code: 'NMW-ITM-002',
-    name: 'Samsung Galaxy A52 Original Battery (4500mAh)',
-    box_number: 'BOX-B03',
-    category: 'Batteries',
-    cost_price: 3200,
-    selling_price: 5500,
-    quantity: 14,
-    low_stock_threshold: 4,
-    created_at: new Date(Date.now() - 86400000 * 4).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'itm-3',
-    item_code: 'NMW-ITM-003',
-    name: 'Redmi Note 11 Type-C Sub-Board Charging Port',
-    box_number: 'BOX-C12',
-    category: 'Charging Ports',
-    cost_price: 950,
-    selling_price: 2400,
-    quantity: 22,
-    low_stock_threshold: 5,
-    created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'itm-4',
-    item_code: 'NMW-ITM-004',
-    name: 'Qualcomm Power IC PM6150 Original (BGA)',
-    box_number: 'BOX-IC04',
-    category: 'ICs & Chips',
-    cost_price: 2800,
-    selling_price: 6800,
-    quantity: 5,
-    low_stock_threshold: 3,
-    created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'itm-5',
-    item_code: 'NMW-ITM-005',
-    name: 'iPhone 12 / 12 Pro Back Glass Housing Panel',
-    box_number: 'BOX-G02',
-    category: 'Housings & Glass',
-    cost_price: 2100,
-    selling_price: 4800,
-    quantity: 9,
-    low_stock_threshold: 3,
-    created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'itm-6',
-    item_code: 'NMW-ITM-006',
-    name: '9D Full Curved Tempered Glass (Universal 6.5")',
-    box_number: 'BOX-ACC1',
-    category: 'Tempered Glass',
-    cost_price: 180,
-    selling_price: 650,
-    quantity: 48,
-    low_stock_threshold: 10,
-    created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'itm-7',
-    item_code: 'NMW-ITM-007',
-    name: '20W PD Fast Charging Power Adapter Type-C',
-    box_number: 'BOX-ACC3',
-    category: 'Accessories',
-    cost_price: 1400,
-    selling_price: 2900,
-    quantity: 18,
-    low_stock_threshold: 4,
-    created_at: new Date(Date.now() - 86400000 * 1).toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'itm-8',
-    item_code: 'NMW-ITM-008',
-    name: 'Micro-Soldering & Motherboard Short Service',
-    box_number: 'SRV-MAIN',
-    category: 'Repair Services',
-    cost_price: 500,
-    selling_price: 4500,
-    quantity: 99,
-    low_stock_threshold: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }
-];
+// ========================================================
+// 🛑 ALL DEMO DATA REMOVED (NOW COMPLETELY EMPTY ARRAYS)
+// ========================================================
+const SEED_INVENTORY: InventoryItem[] = [];
 
-const SEED_CUSTOMERS: Customer[] = [
-  {
-    id: 'cust-1',
-    name: 'Kasun Perera',
-    phone: '0771234567',
-    phone_model: 'iPhone 13 Pro',
-    notes: 'Needs OLED replacement, requested quick delivery.',
-    total_spent: 26500,
-    bills_count: 1,
-    last_visit: new Date(Date.now() - 86400000 * 1).toISOString(),
-    created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
-  },
-  {
-    id: 'cust-2',
-    name: 'Nuwan Jayasinghe',
-    phone: '0719876543',
-    phone_model: 'Samsung Galaxy A52',
-    notes: 'Battery drainage problem.',
-    total_spent: 6150,
-    bills_count: 1,
-    last_visit: new Date(Date.now() - 86400000 * 2).toISOString(),
-    created_at: new Date(Date.now() - 86400000 * 12).toISOString(),
-  },
-  {
-    id: 'cust-3',
-    name: 'Dinuka Fernando',
-    phone: '0755551234',
-    phone_model: 'Redmi Note 11',
-    notes: 'Charging loose contact.',
-    total_spent: 3050,
-    bills_count: 1,
-    last_visit: new Date(Date.now() - 86400000 * 3).toISOString(),
-    created_at: new Date(Date.now() - 86400000 * 15).toISOString(),
-  }
-];
+const SEED_CUSTOMERS: Customer[] = [];
 
-const SEED_BILLS: Bill[] = [
-  {
-    id: 'bill-1001',
-    bill_number: 'NMW-BILL-2026-0001',
-    customer_id: 'cust-1',
-    customer_name: 'Kasun Perera',
-    customer_phone: '0771234567',
-    phone_model: 'iPhone 13 Pro',
-    issue_notes: 'OLED screen replacement with fitting test',
-    items: [
-      {
-        id: 'bi-1',
-        item_id: 'itm-1',
-        item_code: 'NMW-ITM-001',
-        item_name: 'iPhone 13 Pro Super Retina OLED Display',
-        box_number: 'BOX-A01',
-        quantity: 1,
-        unit_price: 26500,
-        line_total: 26500,
-      }
-    ],
-    subtotal: 26500,
-    discount: 0,
-    discount_type: 'fixed',
-    net_total: 26500,
-    paid_amount: 27000,
-    balance: 500,
-    payment_method: 'Cash',
-    status: 'Completed',
-    created_at: new Date(Date.now() - 86400000 * 1).toISOString(),
-    created_by: 'NMWadmin',
-  }
-];
+const SEED_BILLS: Bill[] = [];
 
 export const DEFAULT_ADMIN: AdminUser = {
   id: 'usr-admin-1',
@@ -284,7 +116,6 @@ export function saveStoredSettings(settings: ShopSettings): void {
 export function getStoredSupabaseConfig(): SupabaseConfig {
   const raw = localStorage.getItem(STORAGE_KEYS.SUPABASE_CONFIG);
   if (!raw) {
-    // Check environment variables if available
     const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
     const envKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
     const initial: SupabaseConfig = {
@@ -425,7 +256,6 @@ export async function syncWithSupabase(config: SupabaseConfig): Promise<{
       }));
       saveStoredInventory(resolvedInventory);
     } else if (!invErr && (!remoteInventory || remoteInventory.length === 0)) {
-      // Push local items to remote
       const local = getStoredInventory();
       if (local.length > 0) {
         const payload = local.map((i) => ({
@@ -519,7 +349,6 @@ export async function syncWithSupabase(config: SupabaseConfig): Promise<{
       }));
       saveStoredBills(resolvedBills);
     } else if (!billsErr && (!remoteBills || remoteBills.length === 0)) {
-      // Push local bills if any
       const localBills = getStoredBills();
       for (const bill of localBills) {
         const billPayload = {
@@ -559,7 +388,6 @@ export async function syncWithSupabase(config: SupabaseConfig): Promise<{
       }
     }
 
-    // Mark config synced
     config.lastSyncedAt = new Date().toISOString();
     saveStoredSupabaseConfig(config);
 
