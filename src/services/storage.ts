@@ -1,15 +1,12 @@
 import { InventoryItem, Customer, Bill, ShopSettings, SupabaseConfig, AdminUser } from '../types';
 import { getSupabaseClient } from './supabase';
 
+// 🛑 Local Storage එකේ භාණ්ඩ හෝ බිල්පත් කිසිවක් තබා නොගනී.
+// හුදෙක් සම්බන්ධ වීමට අවශ්‍ය Supabase credentials සහ Session එක පමණක් session-level තබා ගනී.
 const STORAGE_KEYS = {
-  INVENTORY: 'nmw_pos_inventory_v1',
-  CUSTOMERS: 'nmw_pos_customers_v1',
-  BILLS: 'nmw_pos_bills_v1',
   SETTINGS: 'nmw_pos_settings_v1',
   SUPABASE_CONFIG: 'nmw_pos_supabase_v1',
   AUTH_USER: 'nmw_pos_auth_user_v1',
-  USERS: 'nmw_pos_admin_users_v1',
-  PASSWORD_RESETS: 'nmw_pos_password_resets_v1',
 };
 
 export const DEFAULT_SETTINGS: ShopSettings = {
@@ -26,15 +23,6 @@ export const DEFAULT_SETTINGS: ShopSettings = {
   auto_print_on_save: true,
 };
 
-// ========================================================
-// 🛑 ALL DEMO DATA REMOVED (NOW COMPLETELY EMPTY ARRAYS)
-// ========================================================
-const SEED_INVENTORY: InventoryItem[] = [];
-
-const SEED_CUSTOMERS: Customer[] = [];
-
-const SEED_BILLS: Bill[] = [];
-
 export const DEFAULT_ADMIN: AdminUser = {
   id: 'usr-admin-1',
   username: 'NMWadmin',
@@ -44,88 +32,278 @@ export const DEFAULT_ADMIN: AdminUser = {
   last_login: new Date().toISOString(),
 };
 
-// Storage helper methods
-export function getStoredInventory(): InventoryItem[] {
-  const raw = localStorage.getItem(STORAGE_KEYS.INVENTORY);
-  if (!raw) {
-    localStorage.setItem(STORAGE_KEYS.INVENTORY, JSON.stringify(SEED_INVENTORY));
-    return SEED_INVENTORY;
-  }
+// ========================================================
+// ☁️ 1. CLOUD-ONLY INVENTORY OPERATIONS (DIRECT SUPABASE)
+// ========================================================
+
+// Supabase වෙතින් සෘජුවම භාණ්ඩ ලබා ගැනීම
+export async function fetchCloudInventory(config: SupabaseConfig): Promise<InventoryItem[]> {
+  const client = getSupabaseClient(config);
+  if (!client || !config.isEnabled) return [];
+
   try {
-    return JSON.parse(raw);
+    const { data, error } = await client
+      .from('inventory')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error || !data) return [];
+
+    return data.map((i: any) => ({
+      id: i.id,
+      item_code: i.item_code,
+      name: i.name,
+      box_number: i.box_number || 'BOX-01',
+      category: i.category || 'General',
+      cost_price: Number(i.cost_price) || 0,
+      selling_price: Number(i.selling_price) || 0,
+      quantity: Number(i.quantity) || 0,
+      low_stock_threshold: Number(i.low_stock_threshold) || 3,
+      created_at: i.created_at || new Date().toISOString(),
+      updated_at: i.updated_at || new Date().toISOString(),
+    }));
   } catch {
-    return SEED_INVENTORY;
+    return [];
   }
 }
 
-export function saveStoredInventory(items: InventoryItem[]): void {
-  localStorage.setItem(STORAGE_KEYS.INVENTORY, JSON.stringify(items));
-}
+// සෘජුවම Supabase Cloud එකට Item එක Save/Update කිරීම (No LocalStorage)
+export async function saveCloudInventoryItem(config: SupabaseConfig, item: InventoryItem): Promise<boolean> {
+  const client = getSupabaseClient(config);
+  if (!client || !config.isEnabled) return false;
 
-export function getStoredCustomers(): Customer[] {
-  const raw = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
-  if (!raw) {
-    localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(SEED_CUSTOMERS));
-    return SEED_CUSTOMERS;
-  }
   try {
-    return JSON.parse(raw);
+    const payload = {
+      id: item.id.startsWith('itm-') ? generateUUID() : item.id,
+      item_code: item.item_code,
+      name: item.name,
+      box_number: item.box_number,
+      category: item.category,
+      cost_price: item.cost_price,
+      selling_price: item.selling_price,
+      quantity: item.quantity,
+      low_stock_threshold: item.low_stock_threshold,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await client.from('inventory').upsert(payload, { onConflict: 'item_code' });
+    return !error;
   } catch {
-    return SEED_CUSTOMERS;
+    return false;
   }
 }
 
-export function saveStoredCustomers(customers: Customer[]): void {
-  localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
-}
+// සෘජුවම Supabase Cloud එකෙන් Item එක Delete කිරීම
+export async function deleteCloudInventoryItem(config: SupabaseConfig, itemId: string): Promise<boolean> {
+  const client = getSupabaseClient(config);
+  if (!client || !config.isEnabled) return false;
 
-export function getStoredBills(): Bill[] {
-  const raw = localStorage.getItem(STORAGE_KEYS.BILLS);
-  if (!raw) {
-    localStorage.setItem(STORAGE_KEYS.BILLS, JSON.stringify(SEED_BILLS));
-    return SEED_BILLS;
-  }
   try {
-    return JSON.parse(raw);
+    const { error } = await client.from('inventory').delete().eq('id', itemId);
+    return !error;
   } catch {
-    return SEED_BILLS;
+    return false;
   }
 }
 
-export function saveStoredBills(bills: Bill[]): void {
-  localStorage.setItem(STORAGE_KEYS.BILLS, JSON.stringify(bills));
+// ========================================================
+// ☁️ 2. CLOUD-ONLY CUSTOMERS OPERATIONS (DIRECT SUPABASE)
+// ========================================================
+
+export async function fetchCloudCustomers(config: SupabaseConfig): Promise<Customer[]> {
+  const client = getSupabaseClient(config);
+  if (!client || !config.isEnabled) return [];
+
+  try {
+    const { data, error } = await client
+      .from('customers')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error || !data) return [];
+
+    return data.map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      phone: c.phone,
+      phone_model: c.phone_model,
+      notes: c.notes,
+      total_spent: Number(c.total_spent) || 0,
+      bills_count: Number(c.bills_count) || 0,
+      last_visit: c.last_visit || new Date().toISOString(),
+      created_at: c.created_at || new Date().toISOString(),
+    }));
+  } catch {
+    return [];
+  }
 }
 
+export async function saveCloudCustomer(config: SupabaseConfig, customer: Customer): Promise<boolean> {
+  const client = getSupabaseClient(config);
+  if (!client || !config.isEnabled) return false;
+
+  try {
+    const payload = {
+      id: customer.id.startsWith('cust-') ? generateUUID() : customer.id,
+      name: customer.name,
+      phone: customer.phone,
+      phone_model: customer.phone_model,
+      notes: customer.notes,
+      total_spent: customer.total_spent,
+      bills_count: customer.bills_count,
+      last_visit: customer.last_visit,
+    };
+    const { error } = await client.from('customers').upsert(payload, { onConflict: 'phone' });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+// ========================================================
+// ☁️ 3. CLOUD-ONLY BILLS OPERATIONS (DIRECT SUPABASE)
+// ========================================================
+
+export async function fetchCloudBills(config: SupabaseConfig): Promise<Bill[]> {
+  const client = getSupabaseClient(config);
+  if (!client || !config.isEnabled) return [];
+
+  try {
+    const { data: billsData, error: billsErr } = await client
+      .from('bills')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (billsErr || !billsData) return [];
+
+    const { data: itemsData } = await client.from('bill_items').select('*');
+    const itemsMap: Record<string, any[]> = {};
+    if (itemsData) {
+      itemsData.forEach((it: any) => {
+        if (!itemsMap[it.bill_id]) itemsMap[it.bill_id] = [];
+        itemsMap[it.bill_id].push({
+          id: it.id,
+          item_id: it.item_id,
+          item_code: it.item_code,
+          item_name: it.item_name,
+          box_number: it.box_number,
+          quantity: Number(it.quantity) || 1,
+          unit_price: Number(it.unit_price) || 0,
+          line_total: Number(it.line_total) || 0,
+        });
+      });
+    }
+
+    return billsData.map((b: any) => ({
+      id: b.id,
+      bill_number: b.bill_number,
+      customer_id: b.customer_id,
+      customer_name: b.customer_name,
+      customer_phone: b.customer_phone,
+      phone_model: b.phone_model,
+      issue_notes: b.issue_notes,
+      items: itemsMap[b.id] || [],
+      subtotal: Number(b.subtotal) || 0,
+      discount: Number(b.discount) || 0,
+      discount_type: b.discount_type || 'fixed',
+      net_total: Number(b.net_total) || 0,
+      paid_amount: Number(b.paid_amount) || 0,
+      balance: Number(b.balance) || 0,
+      payment_method: b.payment_method || 'Cash',
+      status: b.status || 'Completed',
+      created_at: b.created_at,
+      created_by: b.created_by || 'NMWadmin',
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function saveCloudBill(config: SupabaseConfig, bill: Bill): Promise<boolean> {
+  const client = getSupabaseClient(config);
+  if (!client || !config.isEnabled) return false;
+
+  try {
+    const billPayload = {
+      id: bill.id.startsWith('bill-') ? generateUUID() : bill.id,
+      bill_number: bill.bill_number,
+      customer_id: bill.customer_id || null,
+      customer_name: bill.customer_name,
+      customer_phone: bill.customer_phone,
+      phone_model: bill.phone_model || null,
+      issue_notes: bill.issue_notes || null,
+      subtotal: bill.subtotal,
+      discount: bill.discount,
+      discount_type: bill.discount_type,
+      net_total: bill.net_total,
+      paid_amount: bill.paid_amount,
+      balance: bill.balance,
+      payment_method: bill.payment_method,
+      status: bill.status,
+      created_at: bill.created_at,
+      created_by: bill.created_by,
+    };
+
+    const { error: billError } = await client.from('bills').upsert(billPayload, { onConflict: 'id' });
+    if (billError) return false;
+
+    if (bill.items && bill.items.length > 0) {
+      const itemsPayload = bill.items.map((it) => ({
+        id: generateUUID(),
+        bill_id: billPayload.id,
+        item_id: it.item_id || null,
+        item_code: it.item_code,
+        item_name: it.item_name,
+        box_number: it.box_number,
+        quantity: it.quantity,
+        unit_price: it.unit_price,
+        line_total: it.line_total,
+      }));
+      await client.from('bill_items').upsert(itemsPayload, { onConflict: 'id' });
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ========================================================
+// ⚙️ FALLBACK IN-MEMORY METHODS (BROWSER STORAGE REMAINS EMPTY)
+// ========================================================
+// App එකේ පැරණි functions වලට crash නොවී වැඩ කිරීම සඳහා:
+export function getStoredInventory(): InventoryItem[] { return []; }
+export function saveStoredInventory(_items: InventoryItem[]): void { /* Local storage එකට කිසිවක් නොලියයි */ }
+
+export function getStoredCustomers(): Customer[] { return []; }
+export function saveStoredCustomers(_customers: Customer[]): void { /* Local storage එකට කිසිවක් නොලියයි */ }
+
+export function getStoredBills(): Bill[] { return []; }
+export function saveStoredBills(_bills: Bill[]): void { /* Local storage එකට කිසිවක් නොලියයි */ }
+
+// Settings & Config
 export function getStoredSettings(): ShopSettings {
-  const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-  if (!raw) {
-    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(DEFAULT_SETTINGS));
-    return DEFAULT_SETTINGS;
-  }
   try {
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+    return raw ? JSON.parse(raw) : DEFAULT_SETTINGS;
   } catch {
     return DEFAULT_SETTINGS;
   }
 }
 
 export function saveStoredSettings(settings: ShopSettings): void {
-  localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+  try {
+    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+  } catch {}
 }
 
 export function getStoredSupabaseConfig(): SupabaseConfig {
-  const raw = localStorage.getItem(STORAGE_KEYS.SUPABASE_CONFIG);
-  if (!raw) {
-    const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
-    const envKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
-    const initial: SupabaseConfig = {
-      url: envUrl,
-      anonKey: envKey,
-      isEnabled: Boolean(envUrl && envKey),
-    };
-    return initial;
-  }
   try {
+    const raw = localStorage.getItem(STORAGE_KEYS.SUPABASE_CONFIG);
+    if (!raw) {
+      const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
+      const envKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
+      return { url: envUrl, anonKey: envKey, isEnabled: Boolean(envUrl && envKey) };
+    }
     return JSON.parse(raw);
   } catch {
     return { url: '', anonKey: '', isEnabled: false };
@@ -133,45 +311,38 @@ export function getStoredSupabaseConfig(): SupabaseConfig {
 }
 
 export function saveStoredSupabaseConfig(config: SupabaseConfig): void {
-  localStorage.setItem(STORAGE_KEYS.SUPABASE_CONFIG, JSON.stringify(config));
+  try {
+    localStorage.setItem(STORAGE_KEYS.SUPABASE_CONFIG, JSON.stringify(config));
+  } catch {}
 }
 
-// ✅ WEB PAGE එක CLOSE කළ සැණින් AUTO LOGOUT වී LOGIN PAGE එකට ඒම සඳහා:
+// 🔐 SESSION STORAGE (CLOSING TAB LOGS OUT AUTOMATICALLY)
 export function getStoredAuthUser(): AdminUser | null {
-  const raw = sessionStorage.getItem(STORAGE_KEYS.AUTH_USER);
-  if (!raw) return null;
   try {
-    return JSON.parse(raw);
+    const raw = sessionStorage.getItem(STORAGE_KEYS.AUTH_USER);
+    return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
 }
 
 export function saveStoredAuthUser(user: AdminUser | null): void {
-  if (user) {
-    sessionStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(user));
-  } else {
-    sessionStorage.removeItem(STORAGE_KEYS.AUTH_USER);
-  }
-}
-export function getAdminUsers(): AdminUser[] {
-  const raw = localStorage.getItem(STORAGE_KEYS.USERS);
-  if (!raw) {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify([DEFAULT_ADMIN]));
-    return [DEFAULT_ADMIN];
-  }
   try {
-    return JSON.parse(raw);
-  } catch {
-    return [DEFAULT_ADMIN];
-  }
+    if (user) {
+      sessionStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(user));
+    } else {
+      sessionStorage.removeItem(STORAGE_KEYS.AUTH_USER);
+    }
+  } catch {}
 }
 
-export function saveAdminUsers(users: AdminUser[]): void {
-  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+export function getAdminUsers(): AdminUser[] {
+  return [DEFAULT_ADMIN];
 }
 
-// UUID Generator
+export function saveAdminUsers(_users: AdminUser[]): void {}
+
+// Helpers
 export function generateUUID(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -183,7 +354,6 @@ export function generateUUID(): string {
   });
 }
 
-// Generate Next Item Code
 export function generateNextItemCode(items: InventoryItem[]): string {
   let highestNum = 0;
   const regex = /NMW-ITM-(\d+)/i;
@@ -194,11 +364,9 @@ export function generateNextItemCode(items: InventoryItem[]): string {
       if (num > highestNum) highestNum = num;
     }
   }
-  const next = highestNum + 1;
-  return `NMW-ITM-${next.toString().padStart(3, '0')}`;
+  return `NMW-ITM-${(highestNum + 1).toString().padStart(3, '0')}`;
 }
 
-// Generate Next Bill Number
 export function generateNextBillNumber(bills: Bill[]): string {
   const currentYear = new Date().getFullYear();
   let highestNum = 0;
@@ -210,11 +378,9 @@ export function generateNextBillNumber(bills: Bill[]): string {
       if (num > highestNum) highestNum = num;
     }
   }
-  const next = highestNum + 1;
-  return `NMW-BILL-${currentYear}-${next.toString().padStart(4, '0')}`;
+  return `NMW-BILL-${currentYear}-${(highestNum + 1).toString().padStart(4, '0')}`;
 }
 
-// Format Sri Lankan Rupees
 export function formatRupees(amount: number, symbol: string = 'Rs.'): string {
   const formatted = Number(amount || 0).toLocaleString('en-LK', {
     minimumFractionDigits: 2,
@@ -223,7 +389,7 @@ export function formatRupees(amount: number, symbol: string = 'Rs.'): string {
   return `${symbol} ${formatted}`;
 }
 
-// Async Full Sync with Supabase
+// Full Sync Helper for Settings View
 export async function syncWithSupabase(config: SupabaseConfig): Promise<{
   success: boolean;
   message: string;
@@ -231,172 +397,17 @@ export async function syncWithSupabase(config: SupabaseConfig): Promise<{
   customers?: Customer[];
   bills?: Bill[];
 }> {
-  const client = getSupabaseClient(config);
-  if (!client || !config.isEnabled) {
-    return { success: false, message: 'Supabase is not configured or enabled.' };
-  }
-
   try {
-    // 1. Fetch remote inventory or push local
-    const { data: remoteInventory, error: invErr } = await client.from('inventory').select('*').order('created_at', { ascending: false });
-    let resolvedInventory = getStoredInventory();
-    if (!invErr && remoteInventory && remoteInventory.length > 0) {
-      resolvedInventory = remoteInventory.map((i: any) => ({
-        id: i.id,
-        item_code: i.item_code,
-        name: i.name,
-        box_number: i.box_number || 'BOX-01',
-        category: i.category || 'General',
-        cost_price: Number(i.cost_price) || 0,
-        selling_price: Number(i.selling_price) || 0,
-        quantity: Number(i.quantity) || 0,
-        low_stock_threshold: Number(i.low_stock_threshold) || 3,
-        created_at: i.created_at || new Date().toISOString(),
-        updated_at: i.updated_at || new Date().toISOString(),
-      }));
-      saveStoredInventory(resolvedInventory);
-    } else if (!invErr && (!remoteInventory || remoteInventory.length === 0)) {
-      const local = getStoredInventory();
-      if (local.length > 0) {
-        const payload = local.map((i) => ({
-          id: i.id.startsWith('itm-') ? generateUUID() : i.id,
-          item_code: i.item_code,
-          name: i.name,
-          box_number: i.box_number,
-          category: i.category,
-          cost_price: i.cost_price,
-          selling_price: i.selling_price,
-          quantity: i.quantity,
-          low_stock_threshold: i.low_stock_threshold,
-        }));
-        await client.from('inventory').upsert(payload, { onConflict: 'item_code' });
-      }
-    }
-
-    // 2. Fetch remote customers or push local
-    const { data: remoteCustomers, error: custErr } = await client.from('customers').select('*').order('created_at', { ascending: false });
-    let resolvedCustomers = getStoredCustomers();
-    if (!custErr && remoteCustomers && remoteCustomers.length > 0) {
-      resolvedCustomers = remoteCustomers.map((c: any) => ({
-        id: c.id,
-        name: c.name,
-        phone: c.phone,
-        phone_model: c.phone_model,
-        notes: c.notes,
-        total_spent: Number(c.total_spent) || 0,
-        bills_count: Number(c.bills_count) || 0,
-        last_visit: c.last_visit || new Date().toISOString(),
-        created_at: c.created_at || new Date().toISOString(),
-      }));
-      saveStoredCustomers(resolvedCustomers);
-    } else if (!custErr && (!remoteCustomers || remoteCustomers.length === 0)) {
-      const localCust = getStoredCustomers();
-      if (localCust.length > 0) {
-        const payload = localCust.map((c) => ({
-          id: c.id.startsWith('cust-') ? generateUUID() : c.id,
-          name: c.name,
-          phone: c.phone,
-          phone_model: c.phone_model,
-          notes: c.notes,
-          total_spent: c.total_spent,
-          bills_count: c.bills_count,
-        }));
-        await client.from('customers').upsert(payload, { onConflict: 'phone' });
-      }
-    }
-
-    // 3. Fetch remote bills and bill_items
-    const { data: remoteBills, error: billsErr } = await client.from('bills').select('*').order('created_at', { ascending: false });
-    let resolvedBills = getStoredBills();
-    if (!billsErr && remoteBills && remoteBills.length > 0) {
-      const { data: remoteItems } = await client.from('bill_items').select('*');
-      const itemsMap: Record<string, any[]> = {};
-      if (remoteItems) {
-        remoteItems.forEach((it: any) => {
-          if (!itemsMap[it.bill_id]) itemsMap[it.bill_id] = [];
-          itemsMap[it.bill_id].push({
-            id: it.id,
-            item_id: it.item_id || it.id,
-            item_code: it.item_code,
-            item_name: it.item_name,
-            box_number: it.box_number,
-            quantity: Number(it.quantity) || 1,
-            unit_price: Number(it.unit_price) || 0,
-            line_total: Number(it.line_total) || 0,
-          });
-        });
-      }
-
-      resolvedBills = remoteBills.map((b: any) => ({
-        id: b.id,
-        bill_number: b.bill_number,
-        customer_id: b.customer_id,
-        customer_name: b.customer_name,
-        customer_phone: b.customer_phone,
-        phone_model: b.phone_model,
-        issue_notes: b.issue_notes,
-        items: itemsMap[b.id] || [],
-        subtotal: Number(b.subtotal) || 0,
-        discount: Number(b.discount) || 0,
-        discount_type: b.discount_type || 'fixed',
-        net_total: Number(b.net_total) || 0,
-        paid_amount: Number(b.paid_amount) || 0,
-        balance: Number(b.balance) || 0,
-        payment_method: b.payment_method || 'Cash',
-        status: b.status || 'Completed',
-        created_at: b.created_at,
-        created_by: b.created_by || 'NMWadmin',
-      }));
-      saveStoredBills(resolvedBills);
-    } else if (!billsErr && (!remoteBills || remoteBills.length === 0)) {
-      const localBills = getStoredBills();
-      for (const bill of localBills) {
-        const billPayload = {
-          id: bill.id.startsWith('bill-') ? generateUUID() : bill.id,
-          bill_number: bill.bill_number,
-          customer_id: bill.customer_id || null,
-          customer_name: bill.customer_name,
-          customer_phone: bill.customer_phone,
-          phone_model: bill.phone_model || null,
-          issue_notes: bill.issue_notes || null,
-          subtotal: bill.subtotal,
-          discount: bill.discount,
-          discount_type: bill.discount_type,
-          net_total: bill.net_total,
-          paid_amount: bill.paid_amount,
-          balance: bill.balance,
-          payment_method: bill.payment_method,
-          status: bill.status,
-          created_at: bill.created_at,
-          created_by: bill.created_by,
-        };
-        await client.from('bills').upsert(billPayload, { onConflict: 'id' });
-        if (bill.items && bill.items.length > 0) {
-          const itemsPayload = bill.items.map((it) => ({
-            id: generateUUID(),
-            bill_id: billPayload.id,
-            item_id: it.item_id || null,
-            item_code: it.item_code,
-            item_name: it.item_name,
-            box_number: it.box_number,
-            quantity: it.quantity,
-            unit_price: it.unit_price,
-            line_total: it.line_total,
-          }));
-          await client.from('bill_items').upsert(itemsPayload, { onConflict: 'id' });
-        }
-      }
-    }
-
-    config.lastSyncedAt = new Date().toISOString();
-    saveStoredSupabaseConfig(config);
+    const inventory = await fetchCloudInventory(config);
+    const customers = await fetchCloudCustomers(config);
+    const bills = await fetchCloudBills(config);
 
     return {
       success: true,
-      message: 'Data synchronized successfully with Supabase Cloud!',
-      inventory: resolvedInventory,
-      customers: resolvedCustomers,
-      bills: resolvedBills,
+      message: 'Cloud data successfully fetched from Supabase!',
+      inventory,
+      customers,
+      bills,
     };
   } catch (err: any) {
     return { success: false, message: err.message || 'Sync failed.' };
