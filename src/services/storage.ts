@@ -136,8 +136,9 @@ export function saveStoredSupabaseConfig(config: SupabaseConfig): void {
   localStorage.setItem(STORAGE_KEYS.SUPABASE_CONFIG, JSON.stringify(config));
 }
 
+// ✅ WEB PAGE එක CLOSE කළ සැණින් AUTO LOGOUT වී LOGIN PAGE එකට ඒම සඳහා:
 export function getStoredAuthUser(): AdminUser | null {
-  const raw = localStorage.getItem(STORAGE_KEYS.AUTH_USER);
+  const raw = sessionStorage.getItem(STORAGE_KEYS.AUTH_USER);
   if (!raw) return null;
   try {
     return JSON.parse(raw);
@@ -148,12 +149,11 @@ export function getStoredAuthUser(): AdminUser | null {
 
 export function saveStoredAuthUser(user: AdminUser | null): void {
   if (user) {
-    localStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(user));
+    sessionStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(user));
   } else {
-    localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
+    sessionStorage.removeItem(STORAGE_KEYS.AUTH_USER);
   }
 }
-
 export function getAdminUsers(): AdminUser[] {
   const raw = localStorage.getItem(STORAGE_KEYS.USERS);
   if (!raw) {
