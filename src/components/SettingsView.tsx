@@ -286,6 +286,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           username: newUser.username,
           email: newUser.email,
           role: newUser.role,
+          password_hash: newUserPassword.trim(),
         });
       }
     }
