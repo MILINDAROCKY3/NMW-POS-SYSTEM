@@ -71,12 +71,47 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // User Accounts State
-  const [userList, setUserList] = useState<AdminUser[]>(() => getAdminUsers());
-  const [newUserUsername, setNewUserUsername] = useState('');
-  const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserRole, setNewUserRole] = useState<'admin' | 'staff'>('staff');
-  const [newUserPassword, setNewUserPassword] = useState('');
-  const [isAddingUser, setIsAddingUser] = useState(false);
+  // ✅ වෙනස් කළ යුතු ආකාරය:
+const [userList, setUserList] = useState<AdminUser[]>(() => getAdminUsers());
+const [newUserUsername, setNewUserUsername] = useState('');
+const [newUserEmail, setNewUserEmail] = useState('');
+const [newUserRole, setNewUserRole] = useState<'admin' | 'staff'>('staff');
+const [newUserPassword, setNewUserPassword] = useState('');
+const [isAddingUser, setIsAddingUser] = useState(false);
+
+// 🚀 අලුතින් එක් කළ යුතු කොටස: Database එකෙන් සහ Storage එකෙන් Users load කර පෙන්වීම
+React.useEffect(() => {
+  // 1. LocalStorage එකෙන් ලබා ගැනීම
+  const stored = getAdminUsers();
+  if (stored && stored.length > 0) {
+    setUserList(stored);
+  }
+
+  // 2. Supabase Cloud එකෙන් users ඇත්නම් සජීවීව ලබා ගැනීම
+  if (supabaseConfig.isEnabled) {
+    const client = getSupabaseClient(supabaseConfig);
+    if (client) {
+      client
+        .from('admin_users')
+        .select('*')
+        .order('created_at', { ascending: true })
+        .then(({ data, error }) => {
+          if (!error && data && data.length > 0) {
+            const remoteUsers: AdminUser[] = data.map((u: any) => ({
+              id: u.id,
+              username: u.username,
+              email: u.email,
+              role: u.role || 'staff',
+              created_at: u.created_at || new Date().toISOString(),
+              last_login: u.last_login,
+            }));
+            setUserList(remoteUsers);
+            saveAdminUsers(remoteUsers);
+          }
+        });
+    }
+  }
+}, [supabaseConfig.isEnabled]);
 
   // Save Shop Settings
   const handleSaveShopSettings = (e: React.FormEvent) => {
