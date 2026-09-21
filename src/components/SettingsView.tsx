@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Settings, 
   Store, 
@@ -70,48 +70,68 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   // Top Global Notification
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  // User Accounts State
-  // ✅ වෙනස් කළ යුතු ආකාරය:
-const [userList, setUserList] = useState<AdminUser[]>(() => getAdminUsers());
-const [newUserUsername, setNewUserUsername] = useState('');
-const [newUserEmail, setNewUserEmail] = useState('');
-const [newUserRole, setNewUserRole] = useState<'admin' | 'staff'>('staff');
-const [newUserPassword, setNewUserPassword] = useState('');
-const [isAddingUser, setIsAddingUser] = useState(false);
+  // User Accounts State (Default to Master Admin if empty)
+  const [userList, setUserList] = useState<AdminUser[]>(() => {
+    const existing = getAdminUsers();
+    if (existing && existing.length > 0) return existing;
+    return [
+      {
+        id: 'usr-admin-1',
+        username: 'NMWadmin',
+        email: 'admin@nmwpos.lk',
+        role: 'admin',
+        created_at: new Date().toISOString(),
+      },
+    ];
+  });
 
-// 🚀 අලුතින් එක් කළ යුතු කොටස: Database එකෙන් සහ Storage එකෙන් Users load කර පෙන්වීම
-React.useEffect(() => {
-  // 1. LocalStorage එකෙන් ලබා ගැනීම
-  const stored = getAdminUsers();
-  if (stored && stored.length > 0) {
-    setUserList(stored);
-  }
+  const [newUserUsername, setNewUserUsername] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserRole, setNewUserRole] = useState<'admin' | 'staff'>('staff');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [isAddingUser, setIsAddingUser] = useState(false);
 
-  // 2. Supabase Cloud එකෙන් users ඇත්නම් සජීවීව ලබා ගැනීම
-  if (supabaseConfig.isEnabled) {
-    const client = getSupabaseClient(supabaseConfig);
-    if (client) {
-      client
-        .from('admin_users')
-        .select('*')
-        .order('created_at', { ascending: true })
-        .then(({ data, error }) => {
-          if (!error && data && data.length > 0) {
-            const remoteUsers: AdminUser[] = data.map((u: any) => ({
-              id: u.id,
-              username: u.username,
-              email: u.email,
-              role: u.role || 'staff',
-              created_at: u.created_at || new Date().toISOString(),
-              last_login: u.last_login,
-            }));
-            setUserList(remoteUsers);
-            saveAdminUsers(remoteUsers);
-          }
-        });
+  // Auto-fetch & Sync Accounts from Storage & Supabase Cloud
+  useEffect(() => {
+    const localUsers = getAdminUsers();
+    if (localUsers && localUsers.length > 0) {
+      setUserList(localUsers);
+    } else {
+      const defaultMaster: AdminUser = {
+        id: 'usr-admin-1',
+        username: 'NMWadmin',
+        email: 'admin@nmwpos.lk',
+        role: 'admin',
+        created_at: new Date().toISOString(),
+      };
+      setUserList([defaultMaster]);
+      saveAdminUsers([defaultMaster]);
     }
-  }
-}, [supabaseConfig.isEnabled]);
+
+    if (supabaseConfig.isEnabled && supabaseConfig.url && supabaseConfig.anonKey) {
+      const client = getSupabaseClient(supabaseConfig);
+      if (client) {
+        client
+          .from('admin_users')
+          .select('*')
+          .order('created_at', { ascending: true })
+          .then(({ data, error }) => {
+            if (!error && data && data.length > 0) {
+              const remoteUsers: AdminUser[] = data.map((u: any) => ({
+                id: u.id,
+                username: u.username,
+                email: u.email || `${u.username.toLowerCase()}@nmwpos.lk`,
+                role: u.role || 'staff',
+                created_at: u.created_at || new Date().toISOString(),
+                last_login: u.last_login,
+              }));
+              setUserList(remoteUsers);
+              saveAdminUsers(remoteUsers);
+            }
+          });
+      }
+    }
+  }, [supabaseConfig.isEnabled, supabaseConfig.url, supabaseConfig.anonKey]);
 
   // Save Shop Settings
   const handleSaveShopSettings = (e: React.FormEvent) => {
@@ -898,6 +918,14 @@ React.useEffect(() => {
                       </td>
                     </tr>
                   ))}
+
+                  {userList.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-slate-500 font-mono text-xs">
+                        No authorized user accounts found. Click "+ Add New User" above to create an account.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
